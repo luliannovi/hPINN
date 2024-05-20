@@ -1,6 +1,5 @@
 import deepxde as dde
 import numpy as np
-import tensorflow as tf
 
 
 # Definisci la PDE
@@ -25,64 +24,59 @@ def initial_func(x):
     return np.sin(np.pi * x[:, 0:1])
 
 
-# Costruisci il modello PINN
-data = dde.data.TimePDE(
-    geomtime,
-    heat_equation,
-    [dde.icbc.IC(geomtime, initial_func, boundary)],
-    num_domain=4000,
-    num_boundary=1000,
-    num_initial=100,
-)
+# Parametri per il metodo di penalità
+mu_F = 1.0
+mu_h = 1.0
+beta_F = 1.1
+beta_h = 1.1
+iterations = 10
 
 # Definisci la rete neurale
 net = dde.nn.FNN([2] + [50] * 3 + [1], "tanh", "Glorot normal")
 
-# Parametri di penalizzazione iniziali e fattori di incremento
-mu_F = 1.0
-mu_h = 1.0
-beta_F = 1.5
-beta_h = 1.5
+
+# Funzione per creare il modello con i coefficienti di penalità aggiornati
+def create_model(mu_F, mu_h):
+    # Definisci i vincoli con i coefficienti di penalità aggiornati
+    data = dde.data.TimePDE(
+        geomtime,
+        heat_equation,
+        [dde.icbc.IC(geomtime, initial_func, boundary)],
+        num_domain=4000,
+        num_boundary=1000,
+        num_initial=100,
+    )
+
+    # Crea il modello
+    model = dde.Model(data, net)
+    model.compile("adam", lr=1e-3)
+    return model
 
 
-# Funzione di perdita personalizzata
-def custom_loss():
-    def loss(y_true, y_pred):
-        # Calcola i termini della PDE e della condizione iniziale
-        error_pde = heat_equation(y_true, y_pred)
-        error_ic = initial_func(y_true) - y_pred
+# Loop per il metodo di penalità
+for k in range(iterations):
+    # Crea il modello con i coefficienti di penalità aggiornati
+    model = create_model(mu_F, mu_h)
 
-        # Usa la funzione di perdita MSE di TensorFlow
-        mse = tf.keras.losses.MeanSquaredError()
-        loss_pde = mse(tf.zeros_like(error_pde), error_pde)
-        loss_ic = mse(tf.zeros_like(error_ic), error_ic)
+    # Addestra il modello
+    losshistory, train_state = model.train(epochs=2000)
 
-        return loss_pde + mu_F * loss_pde + mu_h * loss_ic
-
-    return loss
-
-
-# Compila e addestra il modello
-model = dde.Model(data, net)
-model.compile("adam", lr=1e-3, loss=custom_loss())
-
-# Algoritmo di ottimizzazione con penalizzazione iterativa
-max_iterations = 10  # Numero massimo di iterazioni esterne
-tol = 1e-6  # Tolleranza per la convergenza
-losshistory, train_state = None, None
-
-for k in range(max_iterations):
-    losshistory, train_state = model.train(epochs=10000, display_every=1000)
-    L_Fk = np.mean(train_state.loss_train[0])
-    L_hk = np.mean(train_state.loss_train[1])
-
-    if L_Fk < tol and L_hk < tol:
-        break
-
-    # Aggiornamento dei coefficienti di penalizzazione
+    # Incrementa i coefficienti di penalità
     mu_F *= beta_F
     mu_h *= beta_h
 
 # Valutazione e visualizzazione dei risultati
-if losshistory and train_state:
-    dde.saveplot(losshistory, train_state, issave=True, isplot=True)
+dde.saveplot(losshistory, train_state, issave=True, isplot=True)
+
+model.save("heat_equation_model_hPINN")
+
+X_test = geomtime.random_points(1000)
+y_test = model.predict(X_test)
+
+def analytical_solution(x):
+    t = x[:, 1:2]
+    return np.exp(-np.pi**2 * t) * np.sin(np.pi * x[:, 0:1])
+
+y_true = analytical_solution(X_test)
+error = np.linalg.norm(y_test - y_true, 2) / np.linalg.norm(y_true, 2)
+print(f"Relative L2 error: {error}")
