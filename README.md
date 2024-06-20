@@ -43,6 +43,7 @@ python v4.py
 ```
 
 ## Visualizzazione confronto con soluzione veritiera
+da eseguire solamente dopo esecuzione script principale
 ```bash
 python visualize_results.py
 ```
