@@ -1,3 +1,8 @@
+import contextlib
+import os
+import sys
+import time
+
 import deepxde as dde
 import numpy as np
 import matplotlib.pyplot as plt
@@ -71,6 +76,17 @@ def create_model(mu_F, mu_h):
     return model
 
 
+# Context manager per sopprimere l'output di stampa
+@contextlib.contextmanager
+def suppress_stdout():
+    with open(os.devnull, 'w') as fnull:
+        old_stdout = sys.stdout
+        sys.stdout = fnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+
 # Lista vuota per salvare la perdita durante l'addestramento
 losshistory_list = []
 
@@ -78,13 +94,17 @@ losshistory_list = []
 mean_train_losses = []
 mean_test_losses = []
 
+# Inizializza il timer
+start_time = time.time()
+
 # Loop per il metodo di penalità
 for k in range(iterations):
-    # Crea il modello con i coefficienti di penalità aggiornati
-    model = create_model(mu_F, mu_h)
-
-    # Addestra il modello
-    losshistory, train_state = model.train(epochs=100, display_every=50)
+    # Evito output verboso durante compilazione e train
+    with suppress_stdout():
+        # Crea il modello con i coefficienti di penalità aggiornati
+        model = create_model(mu_F, mu_h)
+        # Addestra il modello
+        losshistory, train_state = model.train(epochs=100, display_every=100, disregard_previous_best=True)
 
     # Calcolo della media dei loss per ogni fase
     mean_train_loss = np.mean(np.concatenate(losshistory.loss_train))
@@ -93,10 +113,15 @@ for k in range(iterations):
     # Aggiunta alla lista dei loss medi
     mean_train_losses.append(mean_train_loss)
     mean_test_losses.append(mean_test_loss)
+    print(f"Iteration {k + 1}/{iterations} - Mean Train Loss: {mean_train_loss:.6f}, Mean Test Loss: {mean_test_loss:.6f}")
 
     # Incrementa i coefficienti di penalità
     mu_F *= beta_F
     mu_h *= beta_h
+
+# Calcola il tempo totale impiegato
+total_time = time.time() - start_time
+print(f"Total training time: {total_time:.4f} seconds")
 
 # Salvataggio del modello
 model.save("heat_equation_model_hPINN")
