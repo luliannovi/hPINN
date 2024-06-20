@@ -126,9 +126,9 @@ ax.legend()
 plt.savefig("predicted_solution_final.png")
 plt.show()
 
-# Initialize steps array
+# Conta del numero di iterazioni
 steps = np.arange(0, iterations, 1)
-# Plotting mean train and test losses
+# Plot del trend di mean train loss e mean test loss
 plt.figure(figsize=(10, 6))
 plt.plot(steps, mean_train_losses, label="Mean Train Loss", marker='o')
 plt.plot(steps, mean_test_losses, label="Mean Test Loss", marker='x')
