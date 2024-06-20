@@ -8,21 +8,21 @@ np.random.seed(42)
 
 
 # Definizione della PDE, che verrà utilizzato per il calcolo dell'errore
-# sulla PDE tramite auto-differenziazione automatica della rete neurale
+# sulla PDE tramite auto-differenziazione automatica della rete neurale (funzionalità di DeepXDE)
 def heat_equation(x, y):
     dy_t = dde.grad.jacobian(y, x, i=0, j=1)
     dy_xx = dde.grad.hessian(y, x, i=0, j=0)
     return dy_t - dy_xx
 
 
-# Soluzione analitica al problema, utilizzata per il calcolo e il
-# confronto con i valori veritieri
+# Soluzione analitica al problema, utilizzata per il calcolo dei valori veritieri e il
+# confronto con i valori predetti
 def analytical_solution(x):
     t = x[:, 1:2]
     return np.exp(-np.pi ** 2 * t) * np.sin(np.pi * x[:, 0:1])
 
 
-# Definizione del dominio e delle condizioni iniziali/di contorno
+# Definizione del dominio
 geom = dde.geometry.Interval(0, 1)
 timedomain = dde.geometry.TimeDomain(0, 1)
 geomtime = dde.geometry.GeometryXTime(geom, timedomain)
